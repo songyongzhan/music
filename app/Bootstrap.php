@@ -48,6 +48,8 @@ class Bootstrap extends CoreBootstrap {
     Yaf_Registry::set('viewTemplate', $view);
   }
 
+
+
   /*public function _initRoute(Yaf_Dispatcher $dispatcher) {
     //在这里注册自己的路由协议,默认使用简单路由
     new Yaf_Config_Simple(require_once APP_CONFIG_PATH . DS . 'routerConfig.php');

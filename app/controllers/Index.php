@@ -6,10 +6,61 @@
  * @desc 默认控制器
  * @see http://www.php.net/manual/en/class.yaf-controller-abstract.php
  */
+
+use \Symfony\Component\DomCrawler\Crawler;
+
 class IndexController extends BaseController {
 
 
   public function detailAction() {
+
+
+    //$crawler=new \Symfony\Component\DomCrawler\Crawler();
+
+
+    //$result=$this->sourceDownModel->getUrl('https://ab.weitiexiu.com/index.php?cate--cid-1.html&t=1541753032756');
+
+
+    $result = file_get_contents(APP_PATH . DS . 'aa.html');
+    //
+    $crawler = new Crawler();
+    $crawler->addHtmlContent($result, 'utf-8');
+    /*$lastP=$crawler->filter('section')->last()->text();
+       Pv($lastP);*/
+    $musicList = $crawler->filterXPath('//div[@id="all"]')->filter('section')->each(function (Crawler $node, $i) {
+
+
+//index.php?show--cid-1-id-53035.html&k=y3jngmBETxTAv0z&s=2&date=1
+
+
+
+      /*$obj = [
+        'imgsrc' => $node->attr('src')
+      ];
+
+      return $obj;*/
+
+    });
+
+    //P($musicList);
+
+    exit;
+
+    //$all=$crawler->filterXPath('//div[@id="all"]')->html();
+    //$crawler->filterXPath('//div[@id="all"]/section');
+    $all = $crawler->filter('img')->first()->text();
+    /*->each(function (Crawler $node, $i) {
+
+      //return $node->html();
+      return $node->filter('img')->reduce(function(Crawler $sunnode, $sunj){
+
+        return 123;
+
+      });
+
+    });*/
+
+    P($all);
 
 
     //url
@@ -20,12 +71,10 @@ class IndexController extends BaseController {
 
     //https://k.yt99.com/6c15947fe2ca9ed96ee79d72cb2a67f9/5be4ead6/article/201809/06/1142265b90a22286ec6oolIJP.gif
     //$this->newsModel->geturl('/fbb982125724a79e8ef9e7f79a23ed95/5be5234d/article/201809/06/1142275b90a223797bbTvEkFv.gif');
-    $this->newsModel->geturl('/f658a2c48968c591cc0ced92192ae17b/5be52dfa/meiwen/aaez6kgg46qo0u0rx5pwehwf.m4a');
+    //$this->newsModel->geturl('/f658a2c48968c591cc0ced92192ae17b/5be52dfa/meiwen/aaez6kgg46qo0u0rx5pwehwf.m4a');
 
 
-
-
-    P($this->newsModel->getResponseHeaders());
+    //P($this->newsModel->getResponseHeaders());
 
     //P($this->newsModel->getRequestHeaders());
     exit;
@@ -37,9 +86,7 @@ class IndexController extends BaseController {
       'mtime' => time()
     ];
 
-    $result=$this->newsModel->insert($data,'bb');
-
-
+    $result = $this->newsModel->insert($data, 'bb');
 
 
     $multidata = [
@@ -101,8 +148,6 @@ class IndexController extends BaseController {
     //$result=$this->NewsModel->inserMulti($multidata,'bb');
 
 
-
-
     /* $newdata=['title'=>'songsong'];
      $result=$this->NewsModel->update(3,$newdata,'bb');*/
 
@@ -111,34 +156,34 @@ class IndexController extends BaseController {
 
 
     //$result=$this->NewsModel->del(44,'bb');
-  /*$newModel=$this->NewsModel;
-   $result = $newModel->getListPage([
-      'id' => [
-        'val' => 30,
-        'operator' => '>=',
-        'condition' => 'and'
-      ],
-      'title'=>['val'=>'386']
-    ], ['*'], 1, 3, '','bb');
-    P($result);*/
+    /*$newModel=$this->NewsModel;
+     $result = $newModel->getListPage([
+        'id' => [
+          'val' => 30,
+          'operator' => '>=',
+          'condition' => 'and'
+        ],
+        'title'=>['val'=>'386']
+      ], ['*'], 1, 3, '','bb');
+      P($result);*/
 
-    $newModel=$this->NewsModel;
+    $newModel = $this->NewsModel;
     $result = $newModel->getListPage([
       'id' => [
         'val' => 30,
         'operator' => '>=',
         'condition' => 'and'
       ]
-    ], ['*'], 1, 3, '','bb');
+    ], ['*'], 1, 3, '', 'bb');
     P($result);
 
     //$result=$this->NewsModel->getLastQuery();
 
 
-   /* P(spl_object_id($newModel));
-    P(spl_object_id($this->NewsModel));
+    /* P(spl_object_id($newModel));
+     P(spl_object_id($this->NewsModel));
 
-    P($this->NewsModel);*/
+     P($this->NewsModel);*/
 
     /*$sqls=$this->NewsModel->getSqls();
 
@@ -147,7 +192,7 @@ class IndexController extends BaseController {
 
     //P($this->NewsModel->getLasqQuery());
 
-    $result=$this->NewsModel->query('select * from bb where id >? order by id desc limit 3',[30]);
+    $result = $this->NewsModel->query('select * from bb where id >? order by id desc limit 3', [30]);
     P($result);
 
 
