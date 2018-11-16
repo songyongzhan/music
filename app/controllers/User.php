@@ -10,7 +10,21 @@
 class UserController extends BaseController {
 
   public function indexAction() {
-    echo 'User Index';
+
+
+    $dir = APP_PATH . DS . 'data/source';
+
+    $musicSizeZero = [];
+    $n=0;
+    foreach (glob($dir . DS . '*') as $key => $value) {
+      filesize($value)===0 && $musicSizeZero[]=basename($value);
+    }
+
+    var_dump($n);
+    var_dump(count($musicSizeZero));
+
+    exit;
+
   }
 
 

@@ -160,9 +160,9 @@ class CoreModel {
   /*
    * 返回访问curl Response header头信息
    */
-  public function getResponseHeaders() {
+  public function getResponseHeaders($item='') {
 
-    return $this->_curl->getResponseHeaders();
+    return $this->_curl->getResponseHeaders($item);
   }
 
   /**

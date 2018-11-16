@@ -7,7 +7,7 @@
  * Email: songyongzhan@qianbao.com
  */
 
-class RModel extends SourceDown {
+class RModel extends SourceDownModel {
 
   protected function _init() {
     parent::_init();
@@ -36,10 +36,10 @@ class RModel extends SourceDown {
     return $data;
   }
 
-  public function getContent($url, $data = []) {
+  public function getContent($url, $data = [], $header = []) {
     $result = $this->send($url, $data);
-    $ext = explode('.',basename($url))[1];
-    return $this->save($result, static::SAVEPATH. DS . time() . rand(1000, 9999) . '.' . $ext);
+    $ext = explode('.', basename($url))[1];
+    return $this->save($result, static::SAVEPATH . DS . time() . rand(1000, 9999) . '.' . $ext);
   }
 
 

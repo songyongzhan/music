@@ -7,351 +7,330 @@
  * @see http://www.php.net/manual/en/class.yaf-controller-abstract.php
  */
 
+
 use \Symfony\Component\DomCrawler\Crawler;
 
 class IndexController extends BaseController {
 
+  public $redisKey = 'musiclist';
 
-  public function detailAction() {
+  public $redisMusicIdsKey = 'musicIds';
+
+  private $musicHost = 'https://ab.weitiexiu.com/';
+
+  public function cliAction($user = '') {
+
+    return 'index cli ' . implode(',', $user);
+  }
+
+  public function tTAction() {
 
 
-    //$crawler=new \Symfony\Component\DomCrawler\Crawler();
+    echo 111;
+
+  }
 
 
-    //$result=$this->sourceDownModel->getUrl('https://ab.weitiexiu.com/index.php?cate--cid-1.html&t=1541753032756');
+  public function articleAction() {
+
+    if ($this->sourceDownModel->rlen($this->redisKey) <= 0)
+      return;
 
 
-    $result = file_get_contents(APP_PATH . DS . 'aa.html');
-    //
+    $redisData = $this->sourceDownModel->rpop($this->redisKey);
+
+    $url = $this->musicHost . trim($redisData['url'], '/');
+
+    $thumb = '';
+    if (isset($redisData['thumb']) && $redisData['thumb'] != '') {
+      $thumbData = $this->download($redisData['thumb']);
+      $thumb = $thumbData['httpurl'];
+    }
+
+    $result = $this->sourceDownModel->getUrl($url);
+
+    //$result = file_get_contents(APP_PATH . DS . 'aa.html');
+    $content = preg_replace("/<(\/?script.*?)>/si", "", $result); //过滤script标签
+
+
+    $setCookie = $this->sourceDownModel->getResponseHeaders('set-cookie');
+    $header = [
+      'Cookie' => $setCookie
+    ];
+
     $crawler = new Crawler();
-    $crawler->addHtmlContent($result, 'utf-8');
-    /*$lastP=$crawler->filter('section')->last()->text();
-       Pv($lastP);*/
-    $musicList = $crawler->filterXPath('//div[@id="all"]')->filter('section')->each(function (Crawler $node, $i) {
+    $crawler->addHtmlContent($content);
 
+    $patternUrl = '#(/index.php?[^+\']+)#si';
+    $patternId = '#cid-(\d+)-id-(\d+).html#';
 
-//index.php?show--cid-1-id-53035.html&k=y3jngmBETxTAv0z&s=2&date=1
+    $crawler->filter('#oldlist li')->each(function (Crawler $node, $i) use ($patternUrl, $patternId) {
 
+      $title = $node->filter('.moretitle')->text();
+      $url = '';
+      $articleId = 0;
+      $catId = 0;
 
+      if (preg_match_all($patternUrl, $node->filter('a')->attr('onclick'), $result)) {
+        $url = isset($result[1][0]) ? $result[1][0] : '';
+        if ($url && preg_match_all($patternId, $url, $idResult)) {
+          $catId = $idResult[1][0];
+          $articleId = $idResult[2][0];
+        }
+      }
 
-      /*$obj = [
-        'imgsrc' => $node->attr('src')
-      ];
-
-      return $obj;*/
+      if (!$this->sourceDownModel->hexists($this->redisMusicIdsKey, $articleId)) {
+        $obj = [
+          'title' => $title,
+          'url' => $url,
+          'thumb' => '',
+          'catId' => $catId,
+          'articleId' => $articleId
+        ];
+        $this->sourceDownModel->rpush($this->redisKey, $obj);
+        $this->sourceDownModel->hadd($this->redisMusicIdsKey, $articleId);
+      }
 
     });
 
-    //P($musicList);
 
-    exit;
-
-    //$all=$crawler->filterXPath('//div[@id="all"]')->html();
-    //$crawler->filterXPath('//div[@id="all"]/section');
-    $all = $crawler->filter('img')->first()->text();
-    /*->each(function (Crawler $node, $i) {
-
-      //return $node->html();
-      return $node->filter('img')->reduce(function(Crawler $sunnode, $sunj){
-
-        return 123;
-
-      });
-
-    });*/
-
-    P($all);
+    $crawler->filter('.conttjtw')->each(function (Crawler $node, $i) use ($patternUrl, $patternId) {
 
 
-    //url
+      $title = $node->filter('.tjtw-rtitle51')->text();
+      $url = '';
+      $articleId = 0;
+      $catId = 0;
 
-    //http://k.yt99.com/article/thumb/201809/20/thumb_1015395ba302cb024232ataQm.jpg!94
-    //$this->newsModel->geturl("/article/thumb/201809/20/thumb_1015395ba302cb024232ataQm.jpg!94");
+      if (preg_match_all($patternUrl, $node->attr('onclick'), $result)) {
+        $url = isset($result[1][0]) ? $result[1][0] : '';
+        if ($url && preg_match_all($patternId, $url, $idResult)) {
+          $catId = $idResult[1][0];
+          $articleId = $idResult[2][0];
+        }
+      }
+
+      if (!$this->sourceDownModel->hexists($this->redisMusicIdsKey, $articleId)) {
+        $obj = [
+          'title' => $title,
+          'url' => $url,
+          'thumb' => $node->filter('.tjtw-l img')->attr('data-src'),
+          'catId' => $catId,
+          'articleId' => $articleId
+        ];
+        $this->sourceDownModel->rpush($this->redisKey, $obj);
+        $this->sourceDownModel->hadd($this->redisMusicIdsKey, $articleId);
+      }
+
+    });
 
 
-    //https://k.yt99.com/6c15947fe2ca9ed96ee79d72cb2a67f9/5be4ead6/article/201809/06/1142265b90a22286ec6oolIJP.gif
-    //$this->newsModel->geturl('/fbb982125724a79e8ef9e7f79a23ed95/5be5234d/article/201809/06/1142275b90a223797bbTvEkFv.gif');
-    //$this->newsModel->geturl('/f658a2c48968c591cc0ced92192ae17b/5be52dfa/meiwen/aaez6kgg46qo0u0rx5pwehwf.m4a');
+    /*  <li class="newsmore">
+                      <a href="javascript:void(0);" onclick="window.location.href='/index.php?show--cid-1-id-53106.html&k=zsvcIYx4eFfLgY1'+urlstr+s1+tojump;return false;">
+                          <div class="olditem"><div class="moretitle">♬ 真正的朋友，在心里，联不联系，都不会忘记！</div></div>
+                      </a>
+                  </li>*//*  <li class="newsmore">
+                    <a href="javascript:void(0);" onclick="window.location.href='/index.php?show--cid-1-id-53106.html&k=zsvcIYx4eFfLgY1'+urlstr+s1+tojump;return false;">
+                        <div class="olditem"><div class="moretitle">♬ 真正的朋友，在心里，联不联系，都不会忘记！</div></div>
+                    </a>
+                </li>*/
 
 
-    //P($this->newsModel->getResponseHeaders());
+    $date = $crawler->filter('#post-date')->text();
 
-    //P($this->newsModel->getRequestHeaders());
-    exit;
+    $title = $crawler->filter('title')->text();
+
+    $pageContent = $crawler->filter('#page-content')->html();
+
+    $crawlerContent = new Crawler();
+    $crawlerContent->addHtmlContent($pageContent);
+
+    $imgServerPattern = '/\/\/([g|k|r]).yt99.com/si';
+    $imgs = $crawlerContent->filter('img')->each(function (Crawler $node, $i) use ($imgServerPattern, $header) {
+      $imgSrc = 'http:' . $node->attr('data-src');
+      return $this->download($imgSrc, $header);
+    });
+
+    if ($imgs) {
+      foreach ($imgs as $key => $val) {
+        $imgs[$val['key']] = $val;
+        unset($imgs[$key]);
+      }
+    }
+
+    //获取文件中图片地址
+    $pattern = '#<img.*data-src=["|\']+(.*)["|\']+.*\/?>#simU';
+    if (preg_match($pattern, $pageContent)) {
+      //$str=preg_replace($pattern, 'songimg',$str);
+      $pageContent = preg_replace_callback($pattern, function ($input) use ($imgs) {
+        if (array_key_exists(md5($input[1]), $imgs)) {
+          return str_replace($input[1], $imgs[md5($input[1])]['httpurl'], $input[0]);
+        }
+        return $input[0];
+      }, $pageContent);
+    }
+
+    //看看是否存在css中的图片，如果存在，也是需要进行替换的
+
+    $cssUrlPattern = '#url\(["|\']+(.*)["|\']+\)#simU';
+
+    if (preg_match($cssUrlPattern, $pageContent)) {
+      preg_match_all($cssUrlPattern, $pageContent, $result);
+      foreach ($result[1] as $key => $imgurl) {
+        $result = $this->download($imgurl, $header);
+        $pageContent = str_replace($imgurl, $result['httpurl'], $pageContent);
+      }
+    }
+
+    $musicName = $crawler->filter('#songname blockquote h4')->text();
+    $musicNamePattern = '#《([a-zA-Z0-9\x{4e00}-\x{9fa5}]+)》\s*-?\s*([a-zA-Z0-9\x{4e00}-\x{9fa5}]*)#u';
+
+    if (preg_match($musicNamePattern, $musicName, $result)) {
+      $musicName = $result[1] . (empty($result[2]) ? '' : ' - ' . $result[2]);
+    }
+
+    //下载音乐文件
+    $musicPattern = '#gSound\s?=\s?["|\']+(.*)["|\']+#imU';
+    $music = '';
+    if (preg_match_all($musicPattern, $content, $result)) {
+
+      if (isset($result[1][0])) {
+        $result = $this->download($result[1][0], $header);
+        $music = $result['httpurl'];
+      }
+    }
+
+    //描述
+    $descPattern = '#s_desc\s?=\s?["|\']+(.*)["|\']+#imU';
+    $desc = '';
+    if (preg_match_all($descPattern, $content, $result)) {
+      if (isset($result[1][0])) {
+        $desc = $result[1][0];
+      }
+    }
 
     $data = [
-      'nav' => 3,
-      'title' => '321',
-      'bodycontent' => '123123123123123123content',
-      'mtime' => time()
+      'title' => $title,
+      'decoration' => $desc,
+      'body' => $pageContent,
+      'nav' => isset($redisData['catId']) ? $redisData['catId'] : 0,
+      'thumb' => $thumb,
+      'clicks' => 1,
+      'article_from' => '',
+      'forwardurl' => $url,
+      'manageId' => '1',
+      'posttime' => strtotime($date),
+      'titlekeyword' => $music, //放上音乐地址
+      'htmlname' => $musicName, //音乐地址
+      'sortId' => isset($redisData['articleId']) ? $redisData['articleId'] : 0 //原文id
     ];
 
-    $result = $this->newsModel->insert($data, 'bb');
+    $result = $this->articleModel->insert($data);
 
 
-    $multidata = [
+    if ($result) {
+      $this->sourceDownModel->getRedis()->sAdd('addSuccess', $result);
+    }
 
-      [
-        'nav' => 3,
-        'title' => rand(100, 999),
-        'bodycontent' => '123123123123123123content',
-        'mtime' => time()
-      ], [
-        'nav' => 3,
-        'title' => rand(100, 999),
-        'bodycontent' => '123123123123123123content',
-        'mtime' => time()
-      ], [
-        'nav' => 3,
-        'title' => rand(100, 999),
-        'bodycontent' => '123123123123123123content',
-        'mtime' => time()
-      ], [
-        'nav' => 3,
-        'title' => rand(100, 999),
-        'bodycontent' => '123123123123123123content',
-        'mtime' => time()
-      ], [
-        'nav' => 3,
-        'title' => rand(100, 999),
-        'bodycontent' => '123123123123123123content',
-        'mtime' => time()
-      ], [
-        'nav' => 3,
-        'title' => rand(100, 999),
-        'bodycontent' => '123123123123123123content',
-        'mtime' => time()
-      ], [
-        'nav' => 3,
-        'title' => rand(100, 999),
-        'bodycontent' => '123123123123123123content',
-        'mtime' => time()
-      ], [
-        'nav' => 3,
-        'title' => rand(100, 999),
-        'bodycontent' => '123123123123123123content',
-        'mtime' => time()
-      ], [
-        'nav' => 3,
-        'title' => rand(100, 999),
-        'bodycontent' => '123123123123123123content',
-        'mtime' => time()
-      ], [
-        'nav' => 3,
-        'title' => rand(100, 999),
-        'bodycontent' => '123123123123123123content',
-        'mtime' => time()
-      ]
+    //fwrite(STDOUT, '正在采集文章Id：' . $redisData['articleId'] . ' 目前剩余:' . $this->sourceDownModel->rlen($this->redisKey));
+  }
 
+
+  public function detailAction() {
+
+    $content = $this->sourceDownModel->getUrl('https://ab.weitiexiu.com/index.php?cate--cid-1.html');
+    $content = preg_replace("/<(\/?script.*?)>/si", "", $content); //过滤script标签
+
+    $crawler = new Crawler();
+    $crawler->addHtmlContent($content);
+
+    echo $crawler->filter('div#all section')->count();
+
+    $patternUrl = '#(/index.php?[^+\']+)#si';
+    $patternId = '#cid-(\d+)-id-(\d+).html#';
+
+    $crawler->filter('div#all section')->each(function (Crawler $node, $i) use ($patternUrl, $patternId) {
+
+      $title = count($node->filterXPath('//section/table/tbody/tr/td/span')) > 0 ? $node->filterXPath('//section/table/tbody/tr/td/span')->text() : '';
+      $url = '';
+      $articleId = 0;
+      $catId = 0;
+
+      if (preg_match_all($patternUrl, $node->attr('onclick'), $result)) {
+        $url = isset($result[1][0]) ? $result[1][0] : '';
+        if ($url && preg_match_all($patternId, $url, $idResult)) {
+          $catId = $idResult[1][0];
+          $articleId = $idResult[2][0];
+        }
+      }
+
+      if (!empty($title)) {
+        if (!$this->sourceDownModel->hexists($this->redisMusicIdsKey, $articleId)) {
+          $obj = [
+            'title' => $title,
+            'url' => $url,
+            'thumb' => $node->filterXPath('//section/table/tbody/tr/td/img')->first()->attr('src'),
+            'catId' => $catId,
+            'articleId' => $articleId
+          ];
+          $this->sourceDownModel->rpush($this->redisKey, $obj);
+          $this->sourceDownModel->hadd($this->redisMusicIdsKey, $articleId);
+        }
+      }
+    });
+
+  }
+
+
+  private function getNavIdAndArticleId($url) {
+    $patternId = '#cid-(\d+)-id-(\d+).html#';
+    $result = [];
+    if ($url && preg_match_all($patternId, $url, $idResult)) {
+      $result['nav'] = $idResult[1][0];
+      $result['articleid'] = $idResult[2][0];
+    }
+    return $result;
+  }
+
+  private function download($imgSrc, $header = []) {
+    static $count = 1;
+    $imgServerPattern = '/\/\/([g|k|r]).yt99.com/si';
+    $httpPattern = '#^[http|https]#';
+    if (!preg_match($httpPattern, $imgSrc))
+      $imgSrc = 'http://' . trim($imgSrc, '//');
+
+    $result = '';
+
+    if (preg_match_all($imgServerPattern, $imgSrc, $result)) {
+      switch ($result[1][0]) {
+        case 'k':
+          $result = $this->kModel->getContent($imgSrc, [], $header);
+          break;
+        case 'g':
+          $result = $this->gModel->getContent($imgSrc);
+          break;
+
+        case 'r':
+          $result = $this->rModel->getContent($imgSrc);
+          break;
+      }
+
+      if (!$result && $count <= 3) {
+        $this->download($imgSrc, $header);
+        $count++;
+      }
+
+    }
+
+
+    return [
+      'img' => $imgSrc,
+      'key' => md5(str_replace('http:', '', $imgSrc)),
+      'result' => $result,
+      'basename' => basename($result),
+      'httpurl' => 'http://172.28.66.194:8066/data/source/' . basename($result)
     ];
-
-    //$result=$this->NewsModel->inserMulti($multidata,'bb');
-
-
-    /* $newdata=['title'=>'songsong'];
-     $result=$this->NewsModel->update(3,$newdata,'bb');*/
-
-
-    //$result=$this->NewsModel->getOne(10,[],'bb');
-
-
-    //$result=$this->NewsModel->del(44,'bb');
-    /*$newModel=$this->NewsModel;
-     $result = $newModel->getListPage([
-        'id' => [
-          'val' => 30,
-          'operator' => '>=',
-          'condition' => 'and'
-        ],
-        'title'=>['val'=>'386']
-      ], ['*'], 1, 3, '','bb');
-      P($result);*/
-
-    $newModel = $this->NewsModel;
-    $result = $newModel->getListPage([
-      'id' => [
-        'val' => 30,
-        'operator' => '>=',
-        'condition' => 'and'
-      ]
-    ], ['*'], 1, 3, '', 'bb');
-    P($result);
-
-    //$result=$this->NewsModel->getLastQuery();
-
-
-    /* P(spl_object_id($newModel));
-     P(spl_object_id($this->NewsModel));
-
-     P($this->NewsModel);*/
-
-    /*$sqls=$this->NewsModel->getSqls();
-
-    Pv($sqls);*/
-
-
-    //P($this->NewsModel->getLasqQuery());
-
-    $result = $this->NewsModel->query('select * from bb where id >? order by id desc limit 3', [30]);
-    P($result);
-
-
-    exit;
-
-
-    /* $model=new SampleModel();
-     $model->selectSample();*/
-    $this->SampleModel->selectSample();
-
-
-    //$arr=['id'=>'iser','name'=>'aa'];
-    //$this->_setCookie('vv',$arr);
-
-    //$this->_setCookie('user','james');
-    //$this->_delCookie('vv');
-
-    //P($this->_getCookie('vv'));
-    //var_dump($this->_getCookie('user'));
-
-    //$this->assign('user', 'james');
-
-    $this->getView()->display('/index/detail.html');
-    //echo $this->_render('/index/detail.html');
-
-
   }
 
 
-  public function bbAction() {
-
-    /*   debugMessage('debug 日志');
-       logMessage('info','asdfadsfas');
-       logMessage('warning','warningwarningwarningwarningwarningwarningwarningwarningwarningwarning');
-       logMessage('debug',['name'=>'james','age'=>'33']);*/
-
-
-    //return json_encode(['name'=>'james','age'=>'33']);
-
-    echo json_encode(['name' => 'james', 'age' => '33']);
-    return TRUE;
-    //$this->getResponse()->setBody('content', ['name' => 'james', 'age' => '33']);
-
-
-    //var_dump($vv instanceof $this);
-    /*   $requet = Yaf_Application::app()->getDispatcher()->getRouter();
-       $relation = new ReflectionClass($this);
-
-       P($relation->getReflectionConstants());*/
-
-    //throw new Exception('132456');
-  }
-
-  public function testAction() {
-    echo 'test';
-  }
-
-
-  public function vvAction() {
-    //var_dump(Tools_Request::getRequest()->getModuleName());
-    $this->_name;
-    $model = new SampleModel();
-
-    Yaf_Application::app()->getDispatcher()->getRouter();
-
-
-    P($this->getParams());
-
-    P(Yaf_Application::app()->getLastErrorMsg(), 'var_dump');
-    P(Yaf_Application::app()->getLastErrorNo());
-
-    $request = $this->getRequest();
-    $yafRequest = Yaf_Application::app()->getDispatcher()->getRequest();
-    var_dump($request instanceof $yafRequest);
-
-    printf("<br>====================================");
-    //P($this->_setSession('user',['user'=>'name','age'=>33]),'var_dump');
-    P($this->_setSession('user', 'kkkkkkkkkk'), 'var_dump');
-
-    P($this->_hasSession('user'), 'var_dump');
-
-    P($this->_getSession('user'), 'var_dump');
-    //
-    //P($this->_delSession('user'),'var_dump');
-    //
-    //P($this->_getSession('user'),'var_dump');
-
-    printf("====================================");
-
-
-    var_dump($this->getRequest()->getException());
-
-    //throw new Exception('asdfasdfasdf');
-
-    throw new Exception('132456');
-
-
-    /*
-
-      ini_set('yaf.environ','develop');
-
-
-      P(getDispatcher()->getRouter());*/
-
-    P(ini_get('yaf.environ'));
-
-
-    P(Yaf_Application::app()->environ());
-
-    //P(isAjax());
-
-    /*  $route=new Yaf_Route_Rewrite('a',['controller'=>'index','action'=>'vv']);
-
-
-      var_dump($this->getView());
-
-
-      P(app()->getConfig());*/
-
-    //P( Yaf_Loader::getInstance());
-
-
-    //Yaf_Loader::getInstance()->registerLocalNamespace(array(APPLICATION_PATH.'/tuozhan/smarty/sysplugins', "Bar","vv"));
-    //P(Yaf_Loader::getInstance()->getLocalNamespace());
-    //var_dump($this->getView()->display('/index/index.html'));
-
-    //$this->assign('username','james');
-    $this->getView()->assign('username', 'james');
-
-
-    $this->getView()->display('/index/index.html');
-
-
-    /* P(TEMPLATE_DIR);
-
-     P(ENVIRONMENT);
-
-     P($this->_get('username'));
-     var_dump($route);*/
-
-  }
-
-  /**
-   * 默认动作
-   * Yaf支持直接把Yaf_Request_Abstract::getParam()得到的同名参数作为Action的形参
-   * 对于如下的例子, 当访问http://yourhost/web/index/index/index/name/root 的时候, 你就会发现不同
-   */
-  public function indexAction($name = "Stranger") {
-    //1. fetch query
-    $get = $this->getRequest()->getQuery("get", "default value");
-
-    //2. fetch model
-    $model = new SampleModel();
-
-    //3. assign
-    $this->getView()->assign("content", $model->selectSample());
-    $this->getView()->assign("name", $name);
-
-    //4. render by Yaf, 如果这里返回FALSE, Yaf将不会调用自动视图引擎Render模板
-    return TRUE;
-  }
 }

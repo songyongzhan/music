@@ -13,6 +13,7 @@ require_once APP_PATH . DIRECTORY_SEPARATOR . 'app/configs/api.php';
 }*/
 
 $autoload = [];
+//自动引入帮助函数库
 $autoload['helper'] = array(
   'helper_funs' => 'funs',
   'StatusCode' => 'StatusCode'

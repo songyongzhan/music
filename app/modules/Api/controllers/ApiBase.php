@@ -19,7 +19,7 @@ class ApiBaseController extends BaseController {
     try {
       $parseUri = $this->_parseUri();
       $controller = getInstance($parseUri['controller'], $parseUri['module']);
-      $data = call_user_func_array([$controller, $parseUri['action'] . 'Action'], $this->getRequest()->getParams());
+      $data = call_user_func_array([$controller, strtolower($parseUri['action']) . 'Action'], $this->getRequest()->getParams());
       $this->showJson($data['result'], $data['code'], $data['msg']);
     } catch (Exception $e) {
       //$this->showJson([], API_FAILURE, $e->getMessage());

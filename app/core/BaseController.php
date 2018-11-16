@@ -27,7 +27,7 @@ class BaseController extends CoreController {
   }
 
   public function _display($templateFile) {
-    $this->getView()->display($templateFile);
+    $this->getView()->display('/' . trim($templateFile, '/'));
   }
 
   public function assign($key, $val) {
@@ -60,6 +60,5 @@ class BaseController extends CoreController {
     }
     return $value;
   }
-
 
 }
