@@ -11,6 +11,9 @@ class SourceDownModel extends BaseModel {
 
   const SAVEPATH = APP_PATH . DS . 'data/source';
 
+  /**
+   * @var Redis;
+   */
   static $redis;
 
   protected function _init() {
@@ -60,6 +63,7 @@ class SourceDownModel extends BaseModel {
     return $redis->exists($key);
   }
 
+
   public function hadd($key, $val) {
     $redis = $this->getRedis();
     return $redis->sAdd($key, $val);
@@ -68,6 +72,11 @@ class SourceDownModel extends BaseModel {
   public function hexists($key, $val) {
     $redis = $this->getRedis();
     return $redis->sIsMember($key, $val);
+  }
+
+  public function _hlen($key) {
+    $redis = $this->getRedis();
+    return $redis->sCard($key);
   }
 
 
@@ -81,9 +90,13 @@ class SourceDownModel extends BaseModel {
       $save = preg_replace($pattern, '', $save);
     }
 
+    if (empty($file))
+      return FALSE;
+
     if (file_put_contents($save, $file, LOCK_EX)) {
       return $save;
     }
+
   }
 
 }

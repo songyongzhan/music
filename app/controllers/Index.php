@@ -16,6 +16,10 @@ class IndexController extends BaseController {
 
   public $redisMusicIdsKey = 'musicIds';
 
+  public $addSuccessKey = 'addSuccess'; //总共添加到数据库中的数据id
+
+  public $addSuccessCountKey = 'successTotalId'; //总共添加到数据库中的数据id
+
   private $musicHost = 'https://ab.weitiexiu.com/';
 
   public function cliAction($user = '') {
@@ -23,10 +27,59 @@ class IndexController extends BaseController {
     return 'index cli ' . implode(',', $user);
   }
 
-  public function tTAction() {
+  public function testAction() {
+
+    $this->initRedisData();
+
+    echo 11;
+  }
+
+  /**
+   * 检测redis中的数据 是否与数据库相匹配
+   * @throws Exceptions
+   * @throws InvalideException
+   */
+  private function initRedisData() {
+
+    $redis = $this->sourceDownModel->getRedis();
+
+    //如果redis不存在这个值，就去数据库中获取
+    //再次维护一个数据库中的successid 中的总个数
+    if (!$redis->exists($this->addSuccessCountKey)) {
+      $result = $this->sourceDownModel->query('select count(id) as total from web_successid');
+      $redis->set($this->addSuccessCountKey, $result[0]['total']);
+    }
 
 
-    echo 111;
+    if (!$redis->exists($this->addSuccessKey) || ($this->sourceDownModel->_hlen($this->addSuccessKey) < $redis->get($this->addSuccessCountKey))) {
+
+      $redis->del($this->addSuccessKey);
+      //分批次去取出值，防止一次性大量的值存在，造成数据阻塞
+
+      $mutiCount = 1000;
+      $page = 1;
+      while (TRUE) {
+        $addSucessIds = $this->sourceDownModel->query('select id from web_successid order by id asc limit ' . (($page - 1) * $mutiCount) . ',' . $mutiCount . ';');
+
+        $count = count($addSucessIds);
+        $forCount = ceil($count / 100);
+        for ($i = 0; $i < $forCount; $i++) {
+          $forResult = array_slice($addSucessIds, $i * 100, 100);
+          $forData = [];
+          foreach ($forResult as $key => $val) {
+            $forData[] = $val['id'];
+          }
+          $redis->sAddArray($this->addSuccessKey, $forData);
+        }
+
+        //如果取出的值总数小于1000 则说明数据库中的数据取完了
+        if ($count < $mutiCount)
+          break;
+
+        $page++;
+        usleep(100);
+      }
+    }
 
   }
 
@@ -37,13 +90,17 @@ class IndexController extends BaseController {
       return;
 
 
+    $this->initRedisData();
+
+
     $redisData = $this->sourceDownModel->rpop($this->redisKey);
+
 
     $url = $this->musicHost . trim($redisData['url'], '/');
 
     $thumb = '';
     if (isset($redisData['thumb']) && $redisData['thumb'] != '') {
-      $thumbData = $this->download($redisData['thumb']);
+      $thumbData = $this->download($redisData['thumb'], [], $redisData['articleId']);
       $thumb = $thumbData['httpurl'];
     }
 
@@ -125,17 +182,6 @@ class IndexController extends BaseController {
     });
 
 
-    /*  <li class="newsmore">
-                      <a href="javascript:void(0);" onclick="window.location.href='/index.php?show--cid-1-id-53106.html&k=zsvcIYx4eFfLgY1'+urlstr+s1+tojump;return false;">
-                          <div class="olditem"><div class="moretitle">♬ 真正的朋友，在心里，联不联系，都不会忘记！</div></div>
-                      </a>
-                  </li>*//*  <li class="newsmore">
-                    <a href="javascript:void(0);" onclick="window.location.href='/index.php?show--cid-1-id-53106.html&k=zsvcIYx4eFfLgY1'+urlstr+s1+tojump;return false;">
-                        <div class="olditem"><div class="moretitle">♬ 真正的朋友，在心里，联不联系，都不会忘记！</div></div>
-                    </a>
-                </li>*/
-
-
     $date = $crawler->filter('#post-date')->text();
 
     $title = $crawler->filter('title')->text();
@@ -146,9 +192,9 @@ class IndexController extends BaseController {
     $crawlerContent->addHtmlContent($pageContent);
 
     $imgServerPattern = '/\/\/([g|k|r]).yt99.com/si';
-    $imgs = $crawlerContent->filter('img')->each(function (Crawler $node, $i) use ($imgServerPattern, $header) {
+    $imgs = $crawlerContent->filter('img')->each(function (Crawler $node, $i) use ($imgServerPattern, $header, $redisData) {
       $imgSrc = 'http:' . $node->attr('data-src');
-      return $this->download($imgSrc, $header);
+      return $this->download($imgSrc, $header, $redisData['articleId']);
     });
 
     if ($imgs) {
@@ -177,7 +223,7 @@ class IndexController extends BaseController {
     if (preg_match($cssUrlPattern, $pageContent)) {
       preg_match_all($cssUrlPattern, $pageContent, $result);
       foreach ($result[1] as $key => $imgurl) {
-        $result = $this->download($imgurl, $header);
+        $result = $this->download($imgurl, $header, $redisData['articleId']);
         $pageContent = str_replace($imgurl, $result['httpurl'], $pageContent);
       }
     }
@@ -195,7 +241,7 @@ class IndexController extends BaseController {
     if (preg_match_all($musicPattern, $content, $result)) {
 
       if (isset($result[1][0])) {
-        $result = $this->download($result[1][0], $header);
+        $result = $this->download($result[1][0], $header, $redisData['articleId']);
         $music = $result['httpurl'];
       }
     }
@@ -227,9 +273,10 @@ class IndexController extends BaseController {
 
     $result = $this->articleModel->insert($data);
 
-
     if ($result) {
-      $this->sourceDownModel->getRedis()->sAdd('addSuccess', $result);
+      $this->sourceDownModel->exec('insert into web_successid(id)values(' . $redisData['articleId'] . ');');
+      $this->sourceDownModel->getRedis()->sAdd($this->addSuccessKey, $result);
+      $this->sourceDownModel->getRedis()->incr($this->addSuccessCountKey);
     }
 
     //fwrite(STDOUT, '正在采集文章Id：' . $redisData['articleId'] . ' 目前剩余:' . $this->sourceDownModel->rlen($this->redisKey));
@@ -282,17 +329,7 @@ class IndexController extends BaseController {
   }
 
 
-  private function getNavIdAndArticleId($url) {
-    $patternId = '#cid-(\d+)-id-(\d+).html#';
-    $result = [];
-    if ($url && preg_match_all($patternId, $url, $idResult)) {
-      $result['nav'] = $idResult[1][0];
-      $result['articleid'] = $idResult[2][0];
-    }
-    return $result;
-  }
-
-  private function download($imgSrc, $header = []) {
+  private function download($imgSrc, $header = [], $articleId = 0) {
     static $count = 1;
     $imgServerPattern = '/\/\/([g|k|r]).yt99.com/si';
     $httpPattern = '#^[http|https]#';
@@ -320,8 +357,13 @@ class IndexController extends BaseController {
         $count++;
       }
 
-    }
+      //如果count>3 且 $result 没有成功，则记录下来
 
+      if (!$result && $count > 3) {
+        file_put_contents(APP_PATH . DS . 'data/cache/failure.txt', $articleId, FILE_APPEND | LOCK_EX);
+      }
+
+    }
 
     return [
       'img' => $imgSrc,
